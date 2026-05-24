@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MealCard from './components/MealCard';
 import NutritionTargetForm from './components/NutritionTargetForm';
 import PantrySection from './components/PantrySection';
 import DailySummary from './components/DailySummary';
 import type { MealSuggestions, TargetNutrition } from './types';
+import { loadMealDatabase, filterByIngredients, splitLunchDinner } from './services/mealdb';
+import { PANTRY_ESSENTIALS } from './data/pantryEssentials';
 import './App.css';
 
 type Mode = 'ingredients' | 'pantry';
@@ -16,6 +18,18 @@ export default function App() {
   const [error, setError] = useState('');
   const [results, setResults] = useState<MealSuggestions | null>(null);
 
+  // Preload the meal database in the background on mount
+  useEffect(() => {
+    loadMealDatabase().catch(() => {
+      // Silently fall back to local data; errors surface on suggest click
+    });
+  }, []);
+
+  // Re-preload when mode changes
+  useEffect(() => {
+    loadMealDatabase().catch(() => {});
+  }, [mode]);
+
   const suggest = async () => {
     if (mode === 'ingredients' && !ingredients.trim()) {
       setError('Please enter at least one ingredient.');
@@ -24,20 +38,34 @@ export default function App() {
     setError('');
     setLoading(true);
     setResults(null);
+
     try {
-      const res = await fetch('/api/suggest-meals', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, ingredients: ingredients.trim(), targetNutrition: target }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Server error');
+      const allMeals = await loadMealDatabase();
+
+      let candidates = allMeals;
+
+      if (mode === 'ingredients') {
+        candidates = filterByIngredients(allMeals, ingredients.trim());
+        if (candidates.length === 0) {
+          // No ingredient matches — suggest from full pool
+          candidates = allMeals;
+        }
+      } else {
+        // Pantry mode: shuffle slightly for variety
+        candidates = [...allMeals].sort(() => Math.random() - 0.5);
       }
-      const data: MealSuggestions = await res.json();
-      setResults(data);
+
+      const { lunch, dinner } = splitLunchDinner(candidates);
+
+      const mealSuggestions: MealSuggestions = {
+        lunch,
+        dinner,
+        pantryItems: mode === 'pantry' ? PANTRY_ESSENTIALS : undefined,
+      };
+
+      setResults(mealSuggestions);
     } catch (e: unknown) {
-      setError((e as Error).message || 'Something went wrong');
+      setError((e as Error).message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -113,7 +141,7 @@ export default function App() {
             {loading ? (
               <>
                 <span className="spinner" />
-                Crafting your meal plan...
+                Loading recipes...
               </>
             ) : (
               <>
@@ -139,7 +167,7 @@ export default function App() {
                   <h2>Lunch Options</h2>
                 </div>
                 {results.lunch.map((meal, i) => (
-                  <MealCard key={i} meal={meal} mealType="lunch" />
+                  <MealCard key={meal.id ?? i} meal={meal} mealType="lunch" />
                 ))}
               </div>
 
@@ -150,7 +178,7 @@ export default function App() {
                   <h2>Dinner Options</h2>
                 </div>
                 {results.dinner.map((meal, i) => (
-                  <MealCard key={i} meal={meal} mealType="dinner" />
+                  <MealCard key={meal.id ?? i} meal={meal} mealType="dinner" />
                 ))}
               </div>
             </div>

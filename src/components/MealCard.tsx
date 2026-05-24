@@ -14,6 +14,9 @@ export default function MealCard({ meal, mealType }: Props) {
 
   return (
     <div className="meal-card">
+      {meal.thumbnail && (
+        <img src={meal.thumbnail} alt={meal.name} className="meal-thumb" />
+      )}
       <div className="meal-card-header" onClick={() => setExpanded(!expanded)}>
         <div className="meal-card-title-row">
           <span className="meal-type-icon">{MEAL_ICONS[mealType]}</span>

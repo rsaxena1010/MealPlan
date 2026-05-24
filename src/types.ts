@@ -6,6 +6,7 @@ export interface Nutrition {
 }
 
 export interface Meal {
+  id: string;
   name: string;
   description: string;
   ingredients: string[];
@@ -13,6 +14,8 @@ export interface Meal {
   servingSize: string;
   nutrition: Nutrition;
   instructions: string[];
+  thumbnail?: string;
+  tags?: string[];
 }
 
 export interface PantryItem {

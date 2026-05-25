@@ -167,29 +167,83 @@ export async function loadMealDatabase(): Promise<Meal[]> {
 
 // ── Filtering ─────────────────────────────────────────────────────────────────
 
+// Each sub-array is one protein family. A meal whose name contains any keyword
+// in a group belongs to that family. A user "has" that protein if any of their
+// input words match any keyword in the group.
+const PROTEIN_GROUPS: string[][] = [
+  ['chicken', 'murgh', 'murg'],
+  ['lamb', 'mutton', 'gosht', 'keema'],
+  ['paneer'],
+  ['dal', 'dhal', 'lentil', 'tarka', 'tadka', 'moong', 'masoor', 'toor', 'urad'],
+  ['rajma'],
+  ['chole', 'channa', 'chickpea', 'chana'],
+  ['egg', 'anda'],
+  ['fish', 'prawn', 'shrimp', 'seafood', 'macher', 'machli'],
+  ['soya', 'soy'],
+  ['sprout'],
+];
+
+// "chicken thigh" -> ["chicken thigh", "chicken", "thigh"]
+function tokenize(raw: string): string[] {
+  const phrases = raw
+    .split(/[\n,]+/)
+    .map(s => s.trim().toLowerCase())
+    .filter(s => s.length > 1);
+  const all = new Set<string>(phrases);
+  for (const phrase of phrases) {
+    for (const word of phrase.split(/\s+/)) {
+      if (word.length > 2) all.add(word);
+    }
+  }
+  return [...all];
+}
+
+// Which protein families does the user's ingredient list cover?
+function userProteinGroups(tokens: string[]): string[][] | null {
+  const matched = PROTEIN_GROUPS.filter(group =>
+    group.some(kw => tokens.some(t => t.includes(kw) || kw.includes(t)))
+  );
+  return matched.length > 0 ? matched : null;
+}
+
+// Which protein family does this meal's name belong to?
+function mealProteinGroup(mealName: string): string[] | null {
+  const name = mealName.toLowerCase();
+  return PROTEIN_GROUPS.find(group => group.some(kw => name.includes(kw))) ?? null;
+}
+
 export function filterByIngredients(
   meals: Meal[],
   userIngredients: string,
   feedback?: Record<string, 'up' | 'down'>,
 ): Meal[] {
-  const tokens = userIngredients
-    .split(/[\n,]+/)
-    .map(s => s.trim().toLowerCase())
-    .filter(s => s.length > 1);
-
+  const tokens = tokenize(userIngredients);
   if (tokens.length === 0) return meals;
 
+  const allowedGroups = userProteinGroups(tokens);
+
   const scored = meals.map(meal => {
+    // Hard filter: if the user listed proteins, a meal whose name implies a
+    // *different* protein is excluded entirely (score 0).
+    if (allowedGroups) {
+      const mealGroup = mealProteinGroup(meal.name);
+      if (mealGroup) {
+        const allowed = allowedGroups.some(ag =>
+          ag.some(kw => mealGroup.includes(kw))
+        );
+        if (!allowed) return { meal, score: 0 };
+      }
+    }
+
     const nameLower = meal.name.toLowerCase();
     const ingredientText = meal.ingredients.join(' ').toLowerCase();
 
-    // Name matches are worth 5× more — "chicken" in "Chicken Curry" beats
-    // a meal that merely uses chicken broth or yogurt
+    // Name match x5 + ingredient match x1; base +1 so a protein-matched meal
+    // with no extra overlap still scores above the hard-filter threshold.
     const nameScore = tokens.filter(t => nameLower.includes(t)).length * 5;
     const ingScore = tokens.filter(t => ingredientText.includes(t)).length;
-    let score = nameScore + ingScore;
+    let score = nameScore + ingScore + 1;
 
-    // Apply user feedback: boost liked meals, strongly suppress disliked
     const fb = feedback?.[meal.id];
     if (fb === 'up') score *= 1.5;
     if (fb === 'down') score *= 0.1;
@@ -198,7 +252,7 @@ export function filterByIngredients(
   });
 
   return scored
-    .filter(({ score }) => score > 0.1)
+    .filter(({ score }) => score > 0.5)
     .sort((a, b) => b.score - a.score)
     .map(({ meal }) => meal);
 }

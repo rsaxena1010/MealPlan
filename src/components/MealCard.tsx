@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Meal } from '../types';
 import NutritionBar from './NutritionBar';
 import FeedbackButtons from './FeedbackButtons';
@@ -11,32 +11,62 @@ interface Props {
 }
 
 const MEAL_ICONS = { lunch: '☀️', dinner: '🌙' };
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+function toDateStr(d: Date): string {
+  return d.toISOString().split('T')[0];
 }
 
-function getMonday(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
-  d.setHours(0, 0, 0, 0);
-  return d;
+function getMonday(d: Date): Date {
+  const date = new Date(d);
+  const day = date.getDay();
+  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1));
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+// Next 7 days starting today
+function upcomingDays(): { label: string; dateStr: string }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DAY_NAMES[d.getDay()];
+    return { label, dateStr: toDateStr(d) };
+  });
 }
 
 export default function MealCard({ meal, mealType }: Props) {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [slot, setSlot] = useState<'lunch' | 'dinner'>(mealType);
+  const [savedDate, setSavedDate] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
-  const saveToday = () => {
+  // Close picker on outside click
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [pickerOpen]);
+
+  const save = (dateStr: string) => {
     if (!user) return;
-    const today = todayStr();
-    const weekStart = getMonday(new Date()).toISOString().split('T')[0];
-    saveDayMeal(user.id, weekStart, today, mealType, meal);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const weekStart = toDateStr(getMonday(new Date(dateStr + 'T12:00:00')));
+    saveDayMeal(user.id, weekStart, dateStr, slot, meal);
+    setSavedDate(dateStr);
+    setPickerOpen(false);
+    setTimeout(() => setSavedDate(null), 2500);
   };
+
+  const days = upcomingDays();
 
   return (
     <div className="meal-card">
@@ -63,13 +93,46 @@ export default function MealCard({ meal, mealType }: Props) {
       <div className="meal-card-footer">
         {user ? (
           <>
-            <button
-              className={`save-btn ${saved ? 'saved' : ''}`}
-              onClick={saveToday}
-              title={`Save as today's ${mealType}`}
-            >
-              {saved ? '✓ Saved to today' : `💾 Save as ${mealType}`}
-            </button>
+            <div className="save-wrapper" ref={pickerRef}>
+              <button
+                className={`save-btn ${savedDate ? 'saved' : ''}`}
+                onClick={() => { if (!savedDate) setPickerOpen(p => !p); }}
+              >
+                {savedDate
+                  ? `✓ Saved to ${days.find(d => d.dateStr === savedDate)?.label ?? savedDate}`
+                  : '💾 Save to Plan'}
+              </button>
+
+              {pickerOpen && (
+                <div className="date-picker-popover">
+                  {/* Slot selector */}
+                  <div className="slot-selector">
+                    <button
+                      className={slot === 'lunch' ? 'active' : ''}
+                      onClick={() => setSlot('lunch')}
+                    >☀️ Lunch</button>
+                    <button
+                      className={slot === 'dinner' ? 'active' : ''}
+                      onClick={() => setSlot('dinner')}
+                    >🌙 Dinner</button>
+                  </div>
+
+                  {/* Day chips */}
+                  <div className="day-chips">
+                    {days.map(({ label, dateStr }) => (
+                      <button
+                        key={dateStr}
+                        className="day-chip"
+                        onClick={() => save(dateStr)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <FeedbackButtons mealId={meal.id} userId={user.id} />
           </>
         ) : (

@@ -657,6 +657,76 @@
   gap: 8px;
 }
 
+.save-wrapper {
+  position: relative;
+}
+
+.date-picker-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  background: white;
+  border: 1.5px solid #e8d5b7;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 12px;
+  z-index: 100;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.slot-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.slot-selector button {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1.5px solid #e8d5b7;
+  border-radius: 20px;
+  background: white;
+  color: #8b7355;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.slot-selector button.active {
+  background: linear-gradient(135deg, #c05a00, #e07b39);
+  color: white;
+  border-color: transparent;
+}
+
+.day-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.day-chip {
+  padding: 5px 12px;
+  border: 1.5px solid #e8d5b7;
+  border-radius: 20px;
+  background: #fdf8f0;
+  color: #5a4030;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.day-chip:hover {
+  background: #c05a00;
+  color: white;
+  border-color: #c05a00;
+}
+
 .save-btn {
   font-size: 12px;
   padding: 5px 12px;
@@ -667,16 +737,17 @@
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
 }
 
-.save-btn:hover {
-  background: #fdf0e0;
-}
+.save-btn:hover { background: #fdf0e0; }
 
 .save-btn.saved {
   background: #e7f7ee;
   border-color: #22c55e;
   color: #16a34a;
+  cursor: default;
 }
 
 .feedback-row {

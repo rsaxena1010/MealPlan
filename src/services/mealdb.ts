@@ -167,7 +167,11 @@ export async function loadMealDatabase(): Promise<Meal[]> {
 
 // ── Filtering ─────────────────────────────────────────────────────────────────
 
-export function filterByIngredients(meals: Meal[], userIngredients: string): Meal[] {
+export function filterByIngredients(
+  meals: Meal[],
+  userIngredients: string,
+  feedback?: Record<string, 'up' | 'down'>,
+): Meal[] {
   const tokens = userIngredients
     .split(/[\n,]+/)
     .map(s => s.trim().toLowerCase())
@@ -176,13 +180,25 @@ export function filterByIngredients(meals: Meal[], userIngredients: string): Mea
   if (tokens.length === 0) return meals;
 
   const scored = meals.map(meal => {
-    const haystack = meal.ingredients.join(' ').toLowerCase() + ' ' + meal.name.toLowerCase();
-    const score = tokens.filter(token => haystack.includes(token)).length;
+    const nameLower = meal.name.toLowerCase();
+    const ingredientText = meal.ingredients.join(' ').toLowerCase();
+
+    // Name matches are worth 5× more — "chicken" in "Chicken Curry" beats
+    // a meal that merely uses chicken broth or yogurt
+    const nameScore = tokens.filter(t => nameLower.includes(t)).length * 5;
+    const ingScore = tokens.filter(t => ingredientText.includes(t)).length;
+    let score = nameScore + ingScore;
+
+    // Apply user feedback: boost liked meals, strongly suppress disliked
+    const fb = feedback?.[meal.id];
+    if (fb === 'up') score *= 1.5;
+    if (fb === 'down') score *= 0.1;
+
     return { meal, score };
   });
 
   return scored
-    .filter(({ score }) => score > 0)
+    .filter(({ score }) => score > 0.1)
     .sort((a, b) => b.score - a.score)
     .map(({ meal }) => meal);
 }

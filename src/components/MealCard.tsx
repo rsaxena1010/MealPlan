@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { Meal } from '../types';
 import NutritionBar from './NutritionBar';
+import FeedbackButtons from './FeedbackButtons';
+import { useAuth } from '../contexts/AuthContext';
+import { saveDayMeal } from '../services/storage';
 
 interface Props {
   meal: Meal;
@@ -9,8 +12,31 @@ interface Props {
 
 const MEAL_ICONS = { lunch: '☀️', dinner: '🌙' };
 
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function getMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day + (day === 0 ? -6 : 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 export default function MealCard({ meal, mealType }: Props) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const saveToday = () => {
+    if (!user) return;
+    const today = todayStr();
+    const weekStart = getMonday(new Date()).toISOString().split('T')[0];
+    saveDayMeal(user.id, weekStart, today, mealType, meal);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
 
   return (
     <div className="meal-card">
@@ -33,6 +59,23 @@ export default function MealCard({ meal, mealType }: Props) {
       </div>
 
       <NutritionBar nutrition={meal.nutrition} compact />
+
+      <div className="meal-card-footer">
+        {user ? (
+          <>
+            <button
+              className={`save-btn ${saved ? 'saved' : ''}`}
+              onClick={saveToday}
+              title={`Save as today's ${mealType}`}
+            >
+              {saved ? '✓ Saved to today' : `💾 Save as ${mealType}`}
+            </button>
+            <FeedbackButtons mealId={meal.id} userId={user.id} />
+          </>
+        ) : (
+          <span className="sign-in-hint">Sign in to save plans & give feedback</span>
+        )}
+      </div>
 
       {expanded && (
         <div className="meal-details">

@@ -35,3 +35,22 @@ export interface TargetNutrition {
   carbs: number;
   fat: number;
 }
+
+export interface User {
+  id: string;
+  passwordHash: string;
+  email?: string;
+  createdAt: string;
+}
+
+export interface DayPlan {
+  date: string; // YYYY-MM-DD
+  lunch?: Meal;
+  dinner?: Meal;
+}
+
+export interface MealFeedback {
+  mealId: string;
+  relevance: 'up' | 'down';
+  timestamp: string;
+}
